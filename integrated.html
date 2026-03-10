@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>基金定投分析</title>
+    <style>
+/* color palette */
+:root {
+  --color-primary: #0d6efd;
+  --color-secondary: #6c757d;
+  --bg-light: #f8f9fa;
+  --text-dark: #212529;
+  --border-light: #ddd;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  line-height: 1.6;
+  margin: 0;
+  background: var(--bg-light);
+  color: var(--text-dark);
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+}
+
+h1,
+h2 {
+  color: var(--color-primary);
+  margin-top: 0;
+}
+
+form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+form .field {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+form label {
+  width: 120px;
+  margin-right: 8px;
+  font-weight: bold;
+}
+
+form input,
+form select {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+form button {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 1rem;
+}
+
+form button:hover,
+form button:focus {
+  background: #0b5ed7;
+}
+
+/* tables */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 10px;
+}
+
+table th,
+table td {
+  padding: 8px;
+  border: 1px solid var(--border-light);
+  text-align: center;
+}
+
+table tbody tr:nth-child(odd) {
+  background: #f1f1f1;
+}
+
+/* growth rate coloring */
+.positive {
+  color: red;
+}
+.negative {
+  color: green;
+}
+.zero {
+  color: black;
+}
+
+/* responsive adjustments */
+@media (max-width: 600px) {
+  form .field {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  form label {
+    width: auto;
+    margin-bottom: 4px;
+  }
+
+  /* make tables block-level for narrow screens */
+  table,
+  thead,
+  tbody,
+  th,
+  td,
+  tr {
+    display: block;
+  }
+  thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+  tr {
+    margin-bottom: 1rem;
+  }
+  td {
+    border: none;
+    position: relative;
+    padding-left: 50%;
+    text-align: left;
+  }
+  td:before {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 45%;
+    padding-right: 10px;
+    white-space: nowrap;
+    font-weight: bold;
+  }
+  td:nth-of-type(1):before {
+    content: "定投日期";
+  }
+  td:nth-of-type(2):before {
+    content: "单位净值";
+  }
+  td:nth-of-type(3):before {
+    content: "净值增长率";
+  }
+  td:nth-of-type(4):before {
+    content: "定投金额";
+  }
+  td:nth-of-type(5):before {
+    content: "购买份额";
+  }
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>基金定投分析</h1>
+
+        <form id="dt-form">
+        <div class="field">
+            <label for="fcode">基金代码</label>
+            <input type="text" id="fcode" name="fcode" required value="009505" />
+        </div>
+        <div class="field">
+            <label for="dtStartDate">定投开始日期</label>
+            <input type="date" id="dtStartDate" name="dtStartDate" required />
+        </div>
+        <div class="field">
+            <label for="dtEndDate">定投结束日期</label>
+            <input type="date" id="dtEndDate" name="dtEndDate" required />
+        </div>
+        <div class="field" hidden>
+            <label for="dtShDate">定投赎回日期</label>
+            <input type="date" id="dtShDate" name="dtShDate" />
+        </div>
+        <div class="field" hidden>
+            <label for="round">定投期数</label>
+            <input type="number" id="round" name="round" value="1" min="1" />
+        </div>
+        <div class="field">
+            <label for="roundType">定投方式</label>
+            <select id="roundType" name="roundType">
+                <option value="0">每天</option>
+                <option value="1">每周</option>
+                <option value="2">每月</option>
+            </select>
+        </div>
+        <div class="field" id="weekDayField" style="display:none">
+            <label for="weekDtDay">每周定投日（1=周一）</label>
+            <input type="number" id="weekDtDay" name="weekDtDay" min="1" max="7" />
+        </div>
+        <div class="field" id="monthDayField" style="display:none">
+            <label for="monthDtDay">每月定投日（1-28）</label>
+            <input type="number" id="monthDtDay" name="monthDtDay" min="1" max="28" />
+        </div>
+        <div class="field">
+            <label for="dtAmount">定投金额（元）</label>
+            <input type="number" id="dtAmount" name="dtAmount" value="10" min="0" step="0.01" />
+        </div>
+        <div class="field">
+            <label for="startDayFirstDeduction">首日扣款</label>
+            <select id="startDayFirstDeduction" name="startDayFirstDeduction">
+                <option value="false">否</option>
+                <option value="true">是</option>
+            </select>
+        </div>
+        <button type="submit">查询</button>
+    </form>
+
+    <section id="result">
+        <h2>截止定投赎回日的收益</h2>
+        <table id="summary-table">
+            <thead>
+                <tr>
+                    <th>定投总期数</th>
+                    <th>投入总本金（元）</th>
+                    <th>期末总资产（元）</th>
+                    <th>定投收益率</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>定投记录</h2>
+        <table id="records-table">
+            <thead>
+                <tr>
+                    <th>定投日期</th>
+                    <th>单位净值</th>
+                    <th>净值增长率</th>
+                    <th>定投金额</th>
+                    <th>购买份额</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+    </div>
+
+    <script>
+// helper to build query string
+function buildQuery(params) {
+    return Object.keys(params)
+      .filter((k) => params[k] !== '' && params[k] != null)
+      .map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(params[k]))
+      .join('&');
+}
+
+function showSummary(data) {
+    const tbody = document.querySelector('#summary-table tbody');
+    tbody.innerHTML = '';
+    const row = document.createElement('tr');
+
+    const periods = data.dtPeriods || '-';
+    const principal = data.totalPrincipal || '-';
+    const assets = data.finalTotalAssets || '-';
+    let rate = '-';
+    if (principal && assets && parseFloat(principal) > 0) {
+        rate = ((parseFloat(assets) / parseFloat(principal) - 1) * 100).toFixed(2) + '%';
+    }
+
+    [periods, principal, assets, rate].forEach((v) => {
+        const td = document.createElement('td');
+        td.textContent = v;
+        row.appendChild(td);
+    });
+    tbody.appendChild(row);
+}
+
+function showRecords(records, netMap) {
+    const tbody = document.querySelector('#records-table tbody');
+    tbody.innerHTML = '';
+    if (!records || records.length === 0) {
+        const tr = document.createElement('tr');
+        ['-', '-', '-', '-', '-'].forEach((v) => {
+            const td = document.createElement('td');
+            td.textContent = v;
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+        return;
+    }
+
+    // sort records descending by date
+    const sorted = records.slice().sort((a, b) => b.localeCompare(a));
+    sorted.forEach((date) => {
+        const info = netMap[date] || {};
+        const net = info.DWJZ || '-';
+        const growth = info.JZZZL || '-';
+        const amount = document.querySelector('#dtAmount').value || 0;
+        const share = (net !== '-' && parseFloat(net) > 0) ? (parseFloat(amount) / parseFloat(net)).toFixed(6) : '-';
+        const tr = document.createElement('tr');
+        [date, net, growth, amount, share].forEach((v, idx) => {
+            const td = document.createElement('td');
+            td.textContent = v;
+            // apply color class to growth column (index 2)
+            if (idx === 2) {
+                let num = parseFloat(growth);
+                if (!isNaN(num)) {
+                    if (num > 0) td.classList.add('positive');
+                    else if (num < 0) td.classList.add('negative');
+                    else td.classList.add('zero');
+                } else {
+                    td.classList.add('zero');
+                }
+            }
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+}
+
+function fetchFundDtCalculator(params) {
+    const url = 'https://fundcomapi.tiantianfunds.com/mm/FundCalculate/fundDtCalculator';
+    const query = buildQuery(params);
+    return fetch(url + '?' + query, { mode: 'cors' }).then((r) => r.json());
+}
+
+function fetchFundNetList(fcode, dates) {
+    const url = 'https://fundcomapi.tiantianfunds.com/mm/newCore/FundNetList';
+    const body = 'FCODE=' + encodeURIComponent(fcode) + '&FSRQ=' + encodeURIComponent(dates.join(','));
+    return fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        },
+        body,
+        mode: 'cors',
+    }).then((r) => r.json());
+}
+
+function handleSubmit(e) {
+    e.preventDefault();
+    const form = e.target;
+    const params = {
+        fcode: form.fcode.value,
+        dtStartDate: form.dtStartDate.value,
+        dtEndDate: form.dtEndDate.value,
+        dtShDate: form.dtShDate.value,
+        round: form.round.value,
+        roundType: form.roundType.value,
+        weekDtDay: form.weekDtDay.value,
+        monthDtDay: form.monthDtDay.value,
+        dtAmount: form.dtAmount.value,
+        startDayFirstDeduction: form.startDayFirstDeduction.value,
+        jsoncallback: '' // not needed
+    };
+
+    showSummary({});
+    showRecords([]);
+
+    fetchFundDtCalculator(params)
+        .then((resp) => {
+            if (resp && resp.data) {
+                showSummary(resp.data);
+                const records = resp.data.dtRecords || [];
+                if (records.length > 0) {
+                    return fetchFundNetList(params.fcode, records).then((netResp) => {
+                        const map = {};
+                        if (netResp && netResp.data) {
+                            netResp.data.forEach((item) => {
+                                map[item.FSRQ] = { DWJZ: item.DWJZ, JZZZL: item.JZZZL };
+                            });
+                        }
+                        showRecords(records, map);
+                    });
+                }
+            }
+        })
+        .catch((err) => {
+            console.error('请求失败', err);
+            alert('网络请求失败，请查看控制台');
+        });
+}
+
+function initTypeFields() {
+    const roundTypeSelect = document.getElementById('roundType');
+    roundTypeSelect.addEventListener('change', () => {
+        const v = roundTypeSelect.value;
+        document.getElementById('weekDayField').style.display = v === '1' ? 'block' : 'none';
+        document.getElementById('monthDayField').style.display = v === '2' ? 'block' : 'none';
+    });
+}
+
+
+window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('dt-form').addEventListener('submit', handleSubmit);
+    initTypeFields();
+});
+    </script>
+</body>
+</html>
