@@ -82,10 +82,17 @@ form button:focus {
 }
 
 /* tables */
+.table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 table {
   border-collapse: collapse;
-  width: 100%;
+  min-width: 600px;
+  width: auto;
   margin-top: 10px;
+  white-space: nowrap;
 }
 
 table th,
@@ -119,54 +126,6 @@ table tbody tr:nth-child(odd) {
   form label {
     width: auto;
     margin-bottom: 4px;
-  }
-
-  /* make tables block-level for narrow screens */
-  table,
-  thead,
-  tbody,
-  th,
-  td,
-  tr {
-    display: block;
-  }
-  thead tr {
-    position: absolute;
-    top: -9999px;
-    left: -9999px;
-  }
-  tr {
-    margin-bottom: 1rem;
-  }
-  td {
-    border: none;
-    position: relative;
-    padding-left: 50%;
-    text-align: left;
-  }
-  td:before {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 45%;
-    padding-right: 10px;
-    white-space: nowrap;
-    font-weight: bold;
-  }
-  td:nth-of-type(1):before {
-    content: "定投日期";
-  }
-  td:nth-of-type(2):before {
-    content: "单位净值";
-  }
-  td:nth-of-type(3):before {
-    content: "净值增长率";
-  }
-  td:nth-of-type(4):before {
-    content: "定投金额";
-  }
-  td:nth-of-type(5):before {
-    content: "购买份额";
   }
 }
     </style>
@@ -228,6 +187,7 @@ table tbody tr:nth-child(odd) {
 
     <section id="result">
         <h2>截止定投赎回日的收益</h2>
+        <div class="table-container">
         <table id="summary-table">
             <thead>
                 <tr>
@@ -246,8 +206,10 @@ table tbody tr:nth-child(odd) {
                 </tr>
             </tbody>
         </table>
+        </div>
 
         <h2>定投记录</h2>
+        <div class="table-container">
         <table id="records-table">
             <thead>
                 <tr>
@@ -268,6 +230,7 @@ table tbody tr:nth-child(odd) {
                 </tr>
             </tbody>
         </table>
+        </div>
     </section>
     </div>
 
