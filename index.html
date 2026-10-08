@@ -300,7 +300,7 @@ function initChart() {
       },
       scales: {
         x: { ticks:{color:'#444',maxTicksLimit:6,maxRotation:0}, grid:{color:'rgba(255,255,255,0.04)'} },
-        y: { ticks:{color:'#444',callback:v=>v.toFixed(2)}, grid:{color:'rgba(255,255,255,0.04)'} }
+        y: { ticks:{color:'#444',stepSize:2,callback:v=>Math.round(v)}, grid:{color:'rgba(255,255,255,0.04)'} }
       }
     }
   });
@@ -312,6 +312,21 @@ function drawChart() {
     .sort((a, b) => a.ts - b.ts);
   chart.data.labels   = sliced.map(h => h.time);
   chart.data.datasets[0].data = sliced.map(h => h.buy);
+  // 纵轴取整值刻度：按实际波动幅度自动选步长（1/2/5/10...），上下留一格边距
+  const vals = sliced.map(h => h.buy);
+  if (vals.length) {
+    const rawMin = Math.min(...vals);
+    const rawMax = Math.max(...vals);
+    const span = rawMax - rawMin;
+    const step = [1, 2, 5, 10, 20, 50, 100].find(s => span <= s * 5) || 100;
+    let lo = Math.floor((rawMin - step) / step) * step;
+    let hi = Math.ceil((rawMax + step) / step) * step;
+    if (hi <= lo) hi = lo + step;
+    chart.options.scales.y.min = lo;
+    chart.options.scales.y.max = hi;
+    chart.options.scales.y.ticks.stepSize = step;
+    chart.options.scales.y.ticks.callback = v => Math.round(v);
+  }
   chart.update();
 }
 
