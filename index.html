@@ -1,389 +1,427 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>基金定投分析</title>
-    <style>
-/* color palette */
-:root {
-  --color-primary: #0d6efd;
-  --color-secondary: #6c757d;
-  --bg-light: #f8f9fa;
-  --text-dark: #212529;
-  --border-light: #ddd;
-}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>招行黄金实时价格监控</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #1a1a2e, #16213e);
+      min-height: 100vh;
+      color: #e0e0e0;
+    }
+    .container { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
 
-body {
-  font-family: Arial, sans-serif;
-  line-height: 1.6;
-  margin: 0;
-  background: var(--bg-light);
-  color: var(--text-dark);
-}
+    /* Header */
+    .header { text-align: center; margin-bottom: 28px; }
+    .header h1 { font-size: 1.8rem; color: #ffd700; letter-spacing: 2px; }
+    .header .subtitle { font-size: 0.85rem; color: #888; margin-top: 6px; }
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      margin-top: 10px; padding: 4px 12px; border-radius: 20px;
+      font-size: 0.75rem; background: rgba(255,255,255,0.06);
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #666; animation: pulse 2s infinite;
+    }
+    .status-dot.ok { background: #4caf50; }
+    .status-dot.err { background: #f44336; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-.container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
-}
+    /* Cards */
+    .price-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+    .card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px; padding: 20px; text-align: center;
+      backdrop-filter: blur(8px); transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(255,215,0,0.1); }
+    .card.buy  { border-color: rgba(76,175,80,0.4); }
+    .card.sell { border-color: rgba(244,67,54,0.4); }
+    .card.avg  { border-color: rgba(255,215,0,0.4); }
+    .card-label { font-size: 0.8rem; color: #999; margin-bottom: 8px; }
+    .card-value { font-size: 1.8rem; font-weight: 700; }
+    .card.buy .card-value  { color: #66bb6a; }
+    .card.sell .card-value { color: #ef5350; }
+    .card.avg .card-value  { color: #ffd700; }
+    .card-unit { font-size: 0.75rem; color: #666; margin-top: 4px; }
 
-h1,
-h2 {
-  color: var(--color-primary);
-  margin-top: 0;
-}
+    /* Time & spread */
+    .info-row {
+      display: flex; justify-content: space-between; align-items: center;
+      background: rgba(255,255,255,0.04); border-radius: 12px;
+      padding: 12px 20px; margin-bottom: 24px; font-size: 0.85rem; color: #aaa;
+    }
+    .info-row span { display: flex; align-items: center; gap: 6px; }
+    .info-row .label { color: #666; }
+    .spread-tag {
+      background: rgba(255,215,0,0.15); color: #ffd700;
+      padding: 2px 10px; border-radius: 10px; font-size: 0.8rem;
+    }
 
-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
+    /* Chart */
+    .chart-box {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px; padding: 20px; margin-bottom: 24px;
+    }
+    .chart-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 16px;
+    }
+    .chart-title { font-size: 1rem; font-weight: 600; color: #ccc; }
+    .time-btns { display: flex; gap: 6px; }
+    .time-btns button {
+      background: rgba(255,255,255,0.08); border: none; color: #aaa;
+      padding: 4px 12px; border-radius: 8px; cursor: pointer; font-size: 0.75rem;
+      transition: all 0.2s;
+    }
+    .time-btns button.active, .time-btns button:hover {
+      background: rgba(255,215,0,0.25); color: #ffd700;
+    }
+    .chart-wrap { position: relative; height: 280px; }
 
-form .field {
-  display: flex;
-  align-items: center;
-  width: 100%;
-}
+    /* Controls */
+    .controls { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+    .btn {
+      padding: 10px 24px; border: none; border-radius: 10px;
+      cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e;
+    }
+    .btn-primary:hover { box-shadow: 0 4px 20px rgba(255,215,0,0.4); }
+    .btn-secondary {
+      background: rgba(255,255,255,0.08); color: #ccc; border: 1px solid rgba(255,255,255,0.1);
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.12); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-form label {
-  width: 120px;
-  margin-right: 8px;
-  font-weight: bold;
-}
+    /* History table */
+    .history-box {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px; padding: 20px;
+    }
+    .history-title { font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: #ccc; }
+    .history-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .history-table th {
+      text-align: left; padding: 8px 12px; color: #666;
+      border-bottom: 1px solid rgba(255,255,255,0.08); font-weight: 500;
+    }
+    .history-table td { padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); color: #bbb; }
+    .history-table tr:last-child td { border-bottom: none; }
+    .history-table tr:hover td { background: rgba(255,255,255,0.03); }
+    .up { color: #ef5350; }
+    .down { color: #66bb6a; }
 
-form input,
-form select {
-  flex: 1;
-  padding: 6px 8px;
-  border: 1px solid var(--border-light);
-  border-radius: 4px;
-  font-size: 1rem;
-}
+    /* Error */
+    .error-box {
+      background: rgba(244,67,54,0.1); border: 1px solid rgba(244,67,54,0.3);
+      border-radius: 12px; padding: 14px 18px; margin-bottom: 20px;
+      font-size: 0.85rem; color: #ef9a9a; display: none;
+    }
+    .error-box.show { display: block; }
 
-form button {
-  margin-top: 10px;
-  padding: 8px 16px;
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.2s;
-  font-size: 1rem;
-}
+    /* Footer */
+    .footer { text-align: center; font-size: 0.72rem; color: #444; margin-top: 24px; }
 
-form button:hover,
-form button:focus {
-  background: #0b5ed7;
-}
-
-/* tables */
-.table-container {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-table {
-  border-collapse: collapse;
-  min-width: 600px;
-  width: auto;
-  margin-top: 10px;
-  white-space: nowrap;
-}
-
-table th,
-table td {
-  padding: 8px;
-  border: 1px solid var(--border-light);
-  text-align: center;
-}
-
-table tbody tr:nth-child(odd) {
-  background: #f1f1f1;
-}
-
-/* growth rate coloring */
-.positive {
-  color: red;
-}
-.negative {
-  color: green;
-}
-.zero {
-  color: black;
-}
-
-/* responsive adjustments */
-@media (max-width: 600px) {
-  form .field {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  form label {
-    width: auto;
-    margin-bottom: 4px;
-  }
-}
-    </style>
+    @media (max-width: 600px) {
+      .price-grid { grid-template-columns: 1fr; }
+      .card-value { font-size: 1.5rem; }
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>基金定投分析</h1>
-
-        <form id="dt-form">
-        <div class="field">
-            <label for="fcode">基金代码</label>
-            <input type="text" id="fcode" name="fcode" required value="009505" />
-        </div>
-        <div class="field">
-            <label for="dtStartDate">定投开始日期</label>
-            <input type="date" id="dtStartDate" name="dtStartDate" required />
-        </div>
-        <div class="field">
-            <label for="dtEndDate">定投结束日期</label>
-            <input type="date" id="dtEndDate" name="dtEndDate" required />
-        </div>
-        <div class="field" hidden>
-            <label for="dtShDate">定投赎回日期</label>
-            <input type="date" id="dtShDate" name="dtShDate" />
-        </div>
-        <div class="field" hidden>
-            <label for="round">定投期数</label>
-            <input type="number" id="round" name="round" value="1" min="1" />
-        </div>
-        <div class="field">
-            <label for="roundType">定投方式</label>
-            <select id="roundType" name="roundType">
-                <option value="0">每天</option>
-                <option value="1">每周</option>
-                <option value="2">每月</option>
-            </select>
-        </div>
-        <div class="field" id="weekDayField" style="display:none">
-            <label for="weekDtDay">每周定投日（1=周一）</label>
-            <input type="number" id="weekDtDay" name="weekDtDay" min="1" max="7" />
-        </div>
-        <div class="field" id="monthDayField" style="display:none">
-            <label for="monthDtDay">每月定投日（1-28）</label>
-            <input type="number" id="monthDtDay" name="monthDtDay" min="1" max="28" />
-        </div>
-        <div class="field">
-            <label for="dtAmount">定投金额（元）</label>
-            <input type="number" id="dtAmount" name="dtAmount" value="10" min="0" step="0.01" />
-        </div>
-        <div class="field">
-            <label for="startDayFirstDeduction">首日扣款</label>
-            <select id="startDayFirstDeduction" name="startDayFirstDeduction">
-                <option value="false">否</option>
-                <option value="true">是</option>
-            </select>
-        </div>
-        <button type="submit">查询</button>
-    </form>
-
-    <section id="result">
-        <h2>截止定投赎回日的收益</h2>
-        <div class="table-container">
-        <table id="summary-table">
-            <thead>
-                <tr>
-                    <th>定投总期数</th>
-                    <th>投入总本金（元）</th>
-                    <th>期末总资产（元）</th>
-                    <th>定投收益率</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>-</td>
-                    <td>-</td>
-                    <td>-</td>
-                    <td>-</td>
-                </tr>
-            </tbody>
-        </table>
-        </div>
-
-        <h2>定投记录</h2>
-        <div class="table-container">
-        <table id="records-table">
-            <thead>
-                <tr>
-                    <th>定投日期</th>
-                    <th>单位净值</th>
-                    <th>净值增长率</th>
-                    <th>定投金额</th>
-                    <th>购买份额</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>-</td>
-                    <td>-</td>
-                    <td>-</td>
-                    <td>-</td>
-                    <td>-</td>
-                </tr>
-            </tbody>
-        </table>
-        </div>
-    </section>
+<div class="container">
+  <div class="header">
+    <h1>🥇 招行黄金实时价格</h1>
+    <div class="subtitle">数据来源：招商银行贵金属交易接口 · 每 5 秒自动刷新</div>
+    <div class="status-badge">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">初始化中…</span>
     </div>
+  </div>
 
-    <script>
-// helper to build query string
-function buildQuery(params) {
-    return Object.keys(params)
-      .filter((k) => params[k] !== '' && params[k] != null)
-      .map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(params[k]))
-      .join('&');
-}
+  <div class="error-box" id="errorBox"></div>
 
-function showSummary(data) {
-    const tbody = document.querySelector('#summary-table tbody');
-    tbody.innerHTML = '';
-    const row = document.createElement('tr');
+  <div class="price-grid">
+    <div class="card buy">
+      <div class="card-label">💵 买入价</div>
+      <div class="card-value" id="buyPrice">--</div>
+      <div class="card-unit">元/克</div>
+    </div>
+    <div class="card sell">
+      <div class="card-label">💸 卖出价</div>
+      <div class="card-value" id="sellPrice">--</div>
+      <div class="card-unit">元/克</div>
+    </div>
+    <div class="card avg">
+      <div class="card-label">⚖️ 中间价</div>
+      <div class="card-value" id="avgPrice">--</div>
+      <div class="card-unit">元/克</div>
+    </div>
+  </div>
 
-    const periods = data.dtPeriods || '-';
-    const principal = data.totalPrincipal || '-';
-    const assets = data.finalTotalAssets || '-';
-    let rate = '-';
-    if (principal && assets && parseFloat(principal) > 0) {
-        rate = ((parseFloat(assets) / parseFloat(principal) - 1) * 100).toFixed(2) + '%';
+  <div class="info-row">
+    <span><span class="label">🕐 更新时间：</span><span id="updateTime">--</span></span>
+    <span><span class="label">📊 价格差：</span><span class="spread-tag" id="spreadTag">--</span></span>
+  </div>
+
+  <div class="chart-box">
+    <div class="chart-header">
+      <div class="chart-title">📈 价格走势</div>
+      <div class="time-btns">
+        <button data-range="30" onclick="setRange(30)">30分钟</button>
+        <button data-range="120" class="active" onclick="setRange(120)">2小时</button>
+        <button data-range="360" onclick="setRange(360)">6小时</button>
+        <button data-range="1440" onclick="setRange(1440)">全天</button>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="priceChart"></canvas>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="refreshBtn" onclick="fetchPrice()">🔄 立即刷新</button>
+    <button class="btn btn-secondary" id="pauseBtn" onclick="togglePause()">⏸️ 暂停自动刷新</button>
+    <button class="btn btn-secondary" onclick="exportData()">📥 导出数据</button>
+  </div>
+
+  <div class="history-box">
+    <div class="history-title">📋 最近记录</div>
+    <table class="history-table">
+      <thead>
+        <tr><th>时间</th><th>买入价</th><th>卖出价</th><th>中间价</th><th>涨跌</th></tr>
+      </thead>
+      <tbody id="historyBody"></tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    数据仅供参考，以招商银行官方报价为准 · 接口无鉴权，请勿滥用
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────
+const API_URL   = 'https://mbmodule-openapi.paas.cmbchina.com/product/v1/func/market-center';
+const HEADERS   = {
+  'Content-Type': 'application/x-www-form-urlencoded',
+  'Origin':       'https://mbmodulecdn.cmbimg.com',
+  'Referer':      'https://mbmodulecdn.cmbimg.com/',
+  'X-Requested-With': 'cmb.pb',
+  'Accept':       'application/json, text/plain, */*',
+  'User-Agent':   'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:34.0) Gecko/20100101 Firefox/34.0',
+};
+const BODY = 'params=[{"prdType":"H","prdCode":""}]';
+
+let history      = JSON.parse(localStorage.getItem('goldHistory') || '[]');
+let prevAvg      = null;
+let paused       = false;
+let timer        = null;
+let chart        = null;
+let visibleRange = 120; // minutes
+
+// ── Fetch ──────────────────────────────────────────────────────────
+async function fetchPrice() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 请求中…';
+
+  try {
+    const resp = await fetch(API_URL, { method: 'POST', headers: HEADERS, body: BODY });
+    const json = await resp.json();
+
+    if (!json?.data?.FQAMBPRCZ1) {
+      showError(json?.msg || '响应数据格式异常，请稍后重试');
+      setStatus(false);
+      return;
     }
 
-    [periods, principal, assets, rate].forEach((v) => {
-        const td = document.createElement('td');
-        td.textContent = v;
-        row.appendChild(td);
-    });
-    tbody.appendChild(row);
-}
+    clearError();
+    const d    = json.data.FQAMBPRCZ1;
+    const buy  = parseFloat(d.zBuyPrc);
+    const sell = parseFloat(d.zSelPrc);
+    const avg  = ((buy + sell) / 2).toFixed(2);
+    const time = json.data.NowTime || new Date().toLocaleTimeString('zh-CN');
 
-function showRecords(records, netMap) {
-    const tbody = document.querySelector('#records-table tbody');
-    tbody.innerHTML = '';
-    if (!records || records.length === 0) {
-        const tr = document.createElement('tr');
-        ['-', '-', '-', '-', '-'].forEach((v) => {
-            const td = document.createElement('td');
-            td.textContent = v;
-            tr.appendChild(td);
-        });
-        tbody.appendChild(tr);
-        return;
+    // Update cards
+    document.getElementById('buyPrice').textContent  = buy.toFixed(2);
+    document.getElementById('sellPrice').textContent = sell.toFixed(2);
+    document.getElementById('avgPrice').textContent  = avg;
+    document.getElementById('updateTime').textContent = time;
+    document.getElementById('spreadTag').textContent  = '¥' + (buy - sell).toFixed(2);
+
+    // Status
+    setStatus(true);
+
+    // Record
+    const record = { time, buy, sell, avg: parseFloat(avg), ts: Date.now() };
+    history.unshift(record);
+    if (history.length > 500) history = history.slice(0, 500);
+    localStorage.setItem('goldHistory', JSON.stringify(history));
+
+    // Table
+    renderTable();
+
+    // Chart
+    updateChart();
+
+    // Change indicator
+    const changeEl = document.getElementById('avgPrice');
+    if (prevAvg !== null) {
+      const diff = parseFloat(avg) - prevAvg;
+      changeEl.className = 'card-value ' + (diff >= 0 ? 'up' : 'down');
     }
+    prevAvg = parseFloat(avg);
 
-    // sort records descending by date
-    const sorted = records.slice().sort((a, b) => b.localeCompare(a));
-    sorted.forEach((date) => {
-        const info = netMap[date] || {};
-        const net = info.DWJZ || '-';
-        const growth = info.JZZZL || '-';
-        const amount = document.querySelector('#dtAmount').value || 0;
-        const share = (net !== '-' && parseFloat(net) > 0) ? (parseFloat(amount) / parseFloat(net)).toFixed(6) : '-';
-        const tr = document.createElement('tr');
-        [date, net, growth, amount, share].forEach((v, idx) => {
-            const td = document.createElement('td');
-            td.textContent = v;
-            // apply color class to growth column (index 2)
-            if (idx === 2) {
-                let num = parseFloat(growth);
-                if (!isNaN(num)) {
-                    if (num > 0) td.classList.add('positive');
-                    else if (num < 0) td.classList.add('negative');
-                    else td.classList.add('zero');
-                } else {
-                    td.classList.add('zero');
-                }
-            }
-            tr.appendChild(td);
-        });
-        tbody.appendChild(tr);
-    });
+  } catch (e) {
+    showError('网络错误：' + e.message + '（如遇 CORS 限制，请使用本地代理或浏览器插件绕过）');
+    setStatus(false);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 立即刷新';
+  }
 }
 
-function fetchFundDtCalculator(params) {
-    const url = 'https://fundcomapi.tiantianfunds.com/mm/FundCalculate/fundDtCalculator';
-    const query = buildQuery(params);
-    return fetch(url + '?' + query, { mode: 'cors' }).then((r) => r.json());
+// ── Chart ──────────────────────────────────────────────────────────
+function getFilteredData() {
+  const cutoff = Date.now() - visibleRange * 60 * 1000;
+  return history.filter(h => h.ts >= cutoff);
 }
 
-function fetchFundNetList(fcode, dates) {
-    const url = 'https://fundcomapi.tiantianfunds.com/mm/newCore/FundNetList';
-    const body = 'FCODE=' + encodeURIComponent(fcode) + '&FSRQ=' + encodeURIComponent(dates.join(','));
-    return fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+function initChart() {
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [{
+      label: '中间价（元/克）',
+      data: [],
+      borderColor: '#ffd700',
+      backgroundColor: 'rgba(255,215,0,0.08)',
+      borderWidth: 2,
+      fill: true,
+      tension: 0.3,
+      pointRadius: 0,
+      pointHoverRadius: 5,
+    }]},
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => items[0].label,
+            label: item => '  中间价：' + item.parsed.y.toFixed(2) + ' 元/克',
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#555', maxTicksLimit: 10, maxRotation: 0 },
+          grid: { color: 'rgba(255,255,255,0.04)' }
         },
-        body,
-        mode: 'cors',
-    }).then((r) => r.json());
+        y: {
+          ticks: { color: '#555', callback: v => v.toFixed(2) },
+          grid: { color: 'rgba(255,255,255,0.04)' }
+        }
+      }
+    }
+  });
 }
 
-function handleSubmit(e) {
-    e.preventDefault();
-    const form = e.target;
-    const params = {
-        fcode: form.fcode.value,
-        dtStartDate: form.dtStartDate.value,
-        dtEndDate: form.dtEndDate.value,
-        dtShDate: form.dtShDate.value,
-        round: form.round.value,
-        roundType: form.roundType.value,
-        weekDtDay: form.weekDtDay.value,
-        monthDtDay: form.monthDtDay.value,
-        dtAmount: form.dtAmount.value,
-        startDayFirstDeduction: form.startDayFirstDeduction.value,
-        jsoncallback: '' // not needed
-    };
-
-    showSummary({});
-    showRecords([]);
-
-    fetchFundDtCalculator(params)
-        .then((resp) => {
-            if (resp && resp.data) {
-                showSummary(resp.data);
-                const records = resp.data.dtRecords || [];
-                if (records.length > 0) {
-                    return fetchFundNetList(params.fcode, records).then((netResp) => {
-                        const map = {};
-                        if (netResp && netResp.data) {
-                            netResp.data.forEach((item) => {
-                                map[item.FSRQ] = { DWJZ: item.DWJZ, JZZZL: item.JZZZL };
-                            });
-                        }
-                        showRecords(records, map);
-                    });
-                }
-            }
-        })
-        .catch((err) => {
-            console.error('请求失败', err);
-            alert('网络请求失败，请查看控制台');
-        });
+function updateChart() {
+  const data = getFilteredData();
+  chart.data.labels = data.map(h => h.time);
+  chart.data.datasets[0].data = data.map(h => h.avg);
+  chart.update();
 }
 
-function initTypeFields() {
-    const roundTypeSelect = document.getElementById('roundType');
-    roundTypeSelect.addEventListener('change', () => {
-        const v = roundTypeSelect.value;
-        document.getElementById('weekDayField').style.display = v === '1' ? 'block' : 'none';
-        document.getElementById('monthDayField').style.display = v === '2' ? 'block' : 'none';
-    });
+function setRange(mins) {
+  visibleRange = mins;
+  document.querySelectorAll('.time-btns button').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.range) === mins);
+  });
+  updateChart();
 }
 
+// ── Table ──────────────────────────────────────────────────────────
+function renderTable() {
+  const tbody = document.getElementById('historyBody');
+  const rows  = history.slice(0, 15);
+  tbody.innerHTML = rows.map((r, i) => {
+    const prev = i < rows.length - 1 ? rows[i + 1].avg : null;
+    let change = '';
+    if (prev !== null) {
+      const diff = r.avg - prev;
+      change = `<span class="${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? '▲' : '▼'} ${Math.abs(diff).toFixed(2)}</span>`;
+    }
+    return `<tr><td>${r.time}</td><td>${r.buy.toFixed(2)}</td><td>${r.sell.toFixed(2)}</td><td>${r.avg.toFixed(2)}</td><td>${change}</td></tr>`;
+  }).join('');
+}
 
-window.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('dt-form').addEventListener('submit', handleSubmit);
-    initTypeFields();
-});
-    </script>
+// ── Controls ───────────────────────────────────────────────────────
+function togglePause() {
+  paused = !paused;
+  const btn = document.getElementById('pauseBtn');
+  if (paused) {
+    clearInterval(timer);
+    btn.textContent = '▶️ 恢复自动刷新';
+  } else {
+    startTimer();
+    btn.textContent = '⏸️ 暂停自动刷新';
+  }
+}
+
+function startTimer() {
+  clearInterval(timer);
+  timer = setInterval(fetchPrice, 5000);
+}
+
+function exportData() {
+  if (!history.length) { alert('暂无数据'); return; }
+  const csv = [
+    ['时间','买入价','卖出价','中间价'].join(','),
+    ...history.map(h => `${h.time},${h.buy.toFixed(2)},${h.sell.toFixed(2)},${h.avg.toFixed(2)}`)
+  ].join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `黄金价格_${new Date().toLocaleDateString('zh-CN')}.csv`;
+  a.click();
+}
+
+// ── Helpers ────────────────────────────────────────────────────────
+function setStatus(ok) {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  dot.className = 'status-dot ' + (ok ? 'ok' : 'err');
+  txt.textContent = ok ? '已连接 · 实时更新中' : '连接异常';
+}
+function showError(msg) {
+  const el = document.getElementById('errorBox');
+  el.textContent = '⚠️ ' + msg;
+  el.classList.add('show');
+}
+function clearError() {
+  document.getElementById('errorBox').classList.remove('show');
+}
+
+// ── Init ───────────────────────────────────────────────────────────
+initChart();
+renderTable();
+fetchPrice();
+startTimer();
+</script>
 </body>
 </html>
