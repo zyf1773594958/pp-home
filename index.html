@@ -307,7 +307,9 @@ function initChart() {
 }
 
 function drawChart() {
-  const sliced = history.filter(h => h.ts >= Date.now() - rangeMin * 60000);
+  const sliced = history
+    .filter(h => h.ts >= Date.now() - rangeMin * 60000)
+    .sort((a, b) => a.ts - b.ts);
   chart.data.labels   = sliced.map(h => h.time);
   chart.data.datasets[0].data = sliced.map(h => h.buy);
   chart.update();
